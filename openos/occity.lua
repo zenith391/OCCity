@@ -75,6 +75,19 @@ function pm.draw(x, y, on) -- 2 operations, could be 1 with a double-buffer, how
 	gpu.set(gx, gy, pm.brailleChar(b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8]))
 end
 
+function pm.fill(x, y, width, height, on)
+	local i = x
+	local j = y
+	while i < x + width do
+		j = y
+		while j < y + height do
+			pm.draw(i, j, on)
+			j = j + 1
+		end
+		i = i + 1
+	end
+end
+
 local function printBraille(tab)
 	print(tostring(tab[1]) .. tostring(tab[2]))
 	print(tostring(tab[3]) .. tostring(tab[4]))
@@ -90,10 +103,22 @@ local function interruptListener()
 	running = false
 end
 event.listen("interrupted", interruptListener)
-pm.draw(0, 0, true)
-pm.draw(1, 1, true)
-pm.draw(0, 2, true)
-pm.draw(1, 3, true)
+
+local function drawResidentialHouse(x, y)
+	pm.fill(x, y, 16, 1, true)
+	pm.fill(x, y+16, 16, 1, true)
+	pm.fill(x, y, 1, 16, 1, true)
+	pm.fill(x+16, y, 1, 17, 1, true)
+	
+	-- R
+	pm.fill(x + 4, y + 4, 1, 10, true)
+	pm.fill(x + 4, y + 4, 7, 1, true)
+	pm.fill(x + 11, y + 4, 1, 4, true)
+	pm.fill(x + 4, y + 8, 7, 1, true)
+	pm.fill(x + 11, y + 9, 1, 5, true)
+end
+
+drawResidentialHouse(0, 0)
 --while running do
 --	print("test")
 --	coroutine.yield()
