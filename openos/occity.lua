@@ -118,7 +118,7 @@ local function drawResidentialHouse(x, y)
 	pm.fill(x + 11, y + 9, 1, 5, true)
 end
 
-drawResidentialHouse(0, 0)
+drawResidentialHouse(150, 90)
 --while running do
 --	print("test")
 --	coroutine.yield()
