@@ -6,7 +6,12 @@ local unicode = require("unicode")
 local bit = require("bit32")
 local component = require("component")
 local event = require("event")
+local thread = require("thread")
 local gpu = component.getPrimary("gpu")
+
+pm.cc = 0 -- cached char
+pm.cx = -1 -- cached char x
+pm.cy = -1 -- cached char y
 
 function utf8byte(utf8)
 	local res, seq, val = {}, 0, nil
@@ -64,7 +69,12 @@ function pm.draw(x, y, on) -- 2 operations, could be 1 with a double-buffer, how
 	-- If on is true then put white, else put black
 	local gx = x / 2 + 1 -- gpu x position
 	local gy = y / 4 + 1 -- gpu y position
-	local b = pm.fromBrailleChar(utf8byte(gpu.get(gx, gy))[1])
+	if gx ~= pm.cx or gy ~= pm.cy then
+		pm.cc = gpu.get(gx, gy)
+		pm.cx = gx
+		pm.cy = gy
+	end
+	local b = pm.fromBrailleChar(utf8byte(pm.cc)[1])
 	local bx = x % 2
 	local by = y % 4
 	if on == true then
@@ -110,6 +120,37 @@ local function mousePress(screen, x, y, button)
 	--print("mouse")
 end
 
+
+local musicThread = thread.create(function()
+	local notes = {
+		{210, 0.05},
+		{220, 0.04},
+		{230, 0.04},
+		{215, 0.04},
+		{210, 0.04},
+		{210, 0.05},
+		{220, 0.04},
+		{230, 0.04},
+		{215, 0.04},
+		{210, 0.04},
+		{170, 0.15},
+		{160, 0.10},
+		{170, 0.10},
+		{180, 0.10},
+		{190, 0.10},
+		{200, 0.10}
+	}
+	local i = 1
+	while running do
+		if i > #notes then
+			i = 1
+		end
+		component.computer.beep(notes[i][1], notes[i][2])
+		os.sleep(0.05)
+		i = i + 1
+	end
+end)
+
 event.listen("interrupted", interruptListener)
 event.listen("touch", mousePress)
 
@@ -127,12 +168,19 @@ local function drawResidentialHouse(x, y)
 	pm.fill(x + 11, y + 9, 1, 5, true)
 end
 
-drawResidentialHouse(150, 90)
-
-while running do
-	event.pull()
+local function drawBuildPanel()
+	pm.fill(0, 0, 40, 200, true)
 end
 
+drawResidentialHouse(150, 90)
+drawBuildPanel()
+
+while running do
+	event.pull(0.1)
+	--print("resume music")
+	musicThread:resume()
+end
+musicThread:kill()
 require("term").clear()
 event.ignore("interrupted", interruptListener)
 event.ignore("touch", mousePress)
