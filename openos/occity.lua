@@ -10,9 +10,9 @@ local event = require("event")
 local thread = require("thread")
 local gpu = component.getPrimary("gpu")
 
-pm.cc = 0 -- cached char
-pm.cx = -1 -- cached char x
-pm.cy = -1 -- cached char y
+config = {
+	rainbow = false -- Have fun ;)
+}
 
 function utf8byte(utf8)
 	local res, seq, val = {}, 0, nil
@@ -40,6 +40,10 @@ end
 function pm.brailleChar(a, b, c, d, e, f, g, h) -- from MineOS text.brailleChar
 	return unicode.char(pm.brailleCharRaw(a, b, c, d, e, f, g, h))
 end
+
+pm.cc = pm.brailleChar(0, 0, 0, 0, 0, 0, 0, 0) -- cached char
+pm.cx = -1 -- cached char x
+pm.cy = -1 -- cached char y
 
 function pm.fromBrailleChar(ch)
 	local tab = {}
@@ -71,6 +75,11 @@ function pm.draw(x, y, on) -- 2 operations, could be 1 with a double-buffer, how
 	local gx = x / 2 + 1 -- gpu x position
 	local gy = y / 4 + 1 -- gpu y position
 	if gx ~= pm.cx or gy ~= pm.cy then
+		if config.rainbow then
+			gpu.setBackground(math.random() * 0xFFFFFF)
+			gpu.setForeground(math.random() * 0xFFFFFF)
+		end
+		gpu.set(pm.cx, pm.cy, pm.cc)
 		pm.cc = gpu.get(gx, gy)
 		pm.cx = gx
 		pm.cy = gy
@@ -85,7 +94,6 @@ function pm.draw(x, y, on) -- 2 operations, could be 1 with a double-buffer, how
 	end
 	local bc = pm.brailleChar(b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8])
 	pm.cc = bc
-	gpu.set(gx, gy, bc)
 end
 
 function pm.fill(x, y, width, height, on)
@@ -113,6 +121,9 @@ local running = true
 print("WARNING! ONLY USE CTRL+C TO CLOSE THE GAME!")
 os.sleep(1)
 require("term").clear()
+if config.rainbow then
+	pm.fill(0, 0, 320, 200, false)
+end
 
 local function interruptListener()
 	running = false
@@ -121,7 +132,17 @@ end
 local function mousePress(screen, x, y, button)
 	
 end
-
+local money = 50000
+local gameThread = thread.create(function()
+	local oldmoney = 0
+	while running do
+		if money ~= oldmoney then
+			oldmoney = money
+			gpu.set(22, 1, "Funds: " .. tostring(money) .. "$")
+		end
+		os.sleep(0.05)
+	end
+end)
 
 local musicThread = thread.create(function()
 	local notes = {
@@ -172,9 +193,13 @@ end
 
 local function drawBuildPanel()
 	pm.fill(0, 0, 40, 200, true)
-	pm.fill(9, 9, 19, 19, false)
-	drawResidentialHouse(10, 10)
-	gpu.set(6, 1, "Buildings")
+	pm.fill(9, 13, 19, 19, false)
+	drawResidentialHouse(10, 14)
+	gpu.setBackground(0xFFFFFF)
+	gpu.setForeground(0x000000)
+	gpu.set(6, 2, "Buildings")
+	gpu.setForeground(0xFFFFFF)
+	gpu.setBackground(0x000000)
 end
 
 drawResidentialHouse(150, 90)
@@ -183,6 +208,7 @@ drawBuildPanel()
 while running do
 	event.pull(0.1)
 	musicThread:resume()
+	gameThread:resume()
 end
 musicThread:kill()
 require("term").clear()
