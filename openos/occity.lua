@@ -1,6 +1,7 @@
 -- Using braille, the resolution of the (monochrome) game on a 160x50 display + gpu is: 
 -- 320x200, meaning it's even lower resolution than the original SimCity for DOS xD
 -- Sub-pixel manipulator (using braille)
+-- Made by zenith391
 local pm = {}
 local unicode = require("unicode")
 local bit = require("bit32")
@@ -80,9 +81,11 @@ function pm.draw(x, y, on) -- 2 operations, could be 1 with a double-buffer, how
 	if on == true then
 		b[bx + by*2 + 1] = 1
 	else
-		b[bx + by*2 + 1] = 1
+		b[bx + by*2 + 1] = 0
 	end
-	gpu.set(gx, gy, pm.brailleChar(b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8]))
+	local bc = pm.brailleChar(b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8])
+	pm.cc = bc
+	gpu.set(gx, gy, bc)
 end
 
 function pm.fill(x, y, width, height, on)
@@ -113,11 +116,10 @@ require("term").clear()
 
 local function interruptListener()
 	running = false
-	--print("interrupted!")
 end
 
 local function mousePress(screen, x, y, button)
-	--print("mouse")
+	
 end
 
 
@@ -157,8 +159,8 @@ event.listen("touch", mousePress)
 local function drawResidentialHouse(x, y)
 	pm.fill(x, y, 16, 1, true)
 	pm.fill(x, y+16, 16, 1, true)
-	pm.fill(x, y, 1, 16, 1, true)
-	pm.fill(x+16, y, 1, 17, 1, true)
+	pm.fill(x, y, 1, 16, true)
+	pm.fill(x+16, y, 1, 17, true)
 	
 	-- R
 	pm.fill(x + 4, y + 4, 1, 10, true)
@@ -170,6 +172,9 @@ end
 
 local function drawBuildPanel()
 	pm.fill(0, 0, 40, 200, true)
+	pm.fill(9, 9, 19, 19, false)
+	drawResidentialHouse(10, 10)
+	gpu.set(6, 1, "Buildings")
 end
 
 drawResidentialHouse(150, 90)
@@ -177,7 +182,6 @@ drawBuildPanel()
 
 while running do
 	event.pull(0.1)
-	--print("resume music")
 	musicThread:resume()
 end
 musicThread:kill()
