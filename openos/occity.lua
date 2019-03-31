@@ -97,12 +97,21 @@ end
 
 -- OCCity game
 local running = true
+print("WARNING! ONLY USE CTRL+C TO CLOSE THE GAME!")
+os.sleep(1)
 require("term").clear()
 
 local function interruptListener()
 	running = false
+	--print("interrupted!")
 end
+
+local function mousePress(screen, x, y, button)
+	--print("mouse")
+end
+
 event.listen("interrupted", interruptListener)
+event.listen("touch", mousePress)
 
 local function drawResidentialHouse(x, y)
 	pm.fill(x, y, 16, 1, true)
@@ -119,12 +128,12 @@ local function drawResidentialHouse(x, y)
 end
 
 drawResidentialHouse(150, 90)
---while running do
---	print("test")
---	coroutine.yield()
---end
-while true do
+
+while running do
 	event.pull()
 end
+
+require("term").clear()
 event.ignore("interrupted", interruptListener)
+event.ignore("touch", mousePress)
 print("This game is brought to you by the people called zenith391")
