@@ -10,6 +10,12 @@ local event = require("event")
 local thread = require("thread")
 local gpu = component.getPrimary("gpu")
 
+local w, h = gpu.maxResolution()
+if w < 160 or h < 50 then
+	error("Sorry, the game is designed to work on 160x50!")
+end
+gpu.setResolution(160, 50)
+
 config = {
 	rainbow = false -- Have fun ;)
 }
