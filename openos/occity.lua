@@ -135,9 +135,6 @@ local function interruptListener()
 	running = false
 end
 
-local function mousePress(screen, x, y, button)
-	
-end
 local money = 50000
 local gameThread = thread.create(function()
 	local oldmoney = 0
@@ -180,10 +177,7 @@ local musicThread = thread.create(function()
 	end
 end)
 
-event.listen("interrupted", interruptListener)
-event.listen("touch", mousePress)
-
-local function drawResidentialHouse(x, y)
+local function drawResidentialHouse(x, y) -- width: 17, height: 17
 	pm.fill(x, y, 16, 1, true)
 	pm.fill(x, y+16, 16, 1, true)
 	pm.fill(x, y, 1, 16, true)
@@ -208,12 +202,30 @@ local function drawBuildPanel()
 	gpu.setBackground(0x000000)
 end
 
+local oldX = -1
+local oldY = -1
+local function mousePress(_, screen, x, y, button)
+	if oldX ~= -1 then
+		pm.fill(oldX * 2, oldY * 4, 17, 17, false)
+		oldX = x
+		oldY = y
+	else
+		oldX = x
+		oldY = y
+	end
+	drawResidentialHouse(x*2, y*4)
+end
+
 drawResidentialHouse(150, 90)
 drawBuildPanel()
+musicThread:kill() -- temporaly disabled for performance issues
+
+event.listen("interrupted", interruptListener)
+event.listen("drop", mousePress)
 
 while running do
 	event.pull(0.1)
-	musicThread:resume()
+	--musicThread:resume()
 	gameThread:resume()
 end
 musicThread:kill()
