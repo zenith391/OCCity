@@ -1,5 +1,5 @@
 -- Using braille, the resolution of the (monochrome) game on a 160x50 display + gpu is: 
--- 320x200, meaning it's even lower resolution than the original SimCity for DOS xD
+-- 320x200, meaning it's like VGA hi-color mode.. but without the colors xD
 -- Sub-pixel manipulator (using braille)
 -- Made by zenith391
 local pm = {}
@@ -10,28 +10,82 @@ local event = require("event")
 local thread = require("thread")
 local gpu = component.getPrimary("gpu")
 
+-- All tiles in game
+-- TODO: make a tileset
+local tiles = {
+	{
+		{true, true, true, true, true, true, true},
+		{true, true, true, true, true, true, true},
+		{true, true, true, true, true, true, true},
+		{true, true, true, true, true, true, true},
+		{true, true, true, true, true, true, true},
+		{true, true, true, true, true, true, true},
+		{true, true, true, true, true, true, true}
+	},
+	{
+		{false, false, false, false, false, false, true},
+		{false, false, false, false, false, true, true},
+		{false, false, false, false, true, true, true},
+		{false, false, false, true, true, true, true},
+		{false, false, true, true, true, true, true},
+		{false, true, true, true, true, true, true},
+		{true, true, true, true, true, true, true}
+	},
+	{
+		{true, true, true, true, true, true, true},
+		{false, true, true, true, true, true, true},
+		{false, false, true, true, true, true, true},
+		{false, false, false, true, true, true, true},
+		{false, false, false, false, true, true, true},
+		{false, false, false, false, false, true, true},
+		{false, false, false, false, false, false, true}
+	},
+	{
+		{true, true, true, true, true, true, true},
+		{true, true, true, true, true, true, false},
+		{true, true, true, true, true, false, false},
+		{true, true, true, true, false, false, false},
+		{true, true, true, false, false, false, false},
+		{true, true, false, false, false, false, false},
+		{true, false, false, false, false, false, false}
+	},
+	{
+		{false, false, false, false, false, false, false},
+		{false, false, false, false, false, false, false},
+		{false, false, false, false, false, false, false},
+		{false, false, false, false, false, false, false},
+		{false, false, false, false, false, false, false},
+		{false, false, false, false, false, false, false},
+		{false, false, false, false, false, false, false}
+	}
+}
+
+local terrain = nil
 local w, h = gpu.maxResolution()
+
 if w < 160 or h < 50 then
-	error("Sorry, the game is designed to work on 160x50!")
+	io.stderr:write("Sorry, the game is designed to work on 160x50!\n")
+	return
 end
+
 gpu.setResolution(160, 50)
 
 config = {
-	rainbow = false -- Have fun ;)
+	optimize = true
 }
 
-function utf8byte(utf8)
+function utf8byte(utf)
 	local res, seq, val = {}, 0, nil
-	for i = 1, #utf8 do
-		local c = string.byte(utf8, i)
+	for i = 1, #utf do
+		local c = string.byte(utf, i)
 		if seq == 0 then
 			table.insert(res, val)
 			seq = c < 0x80 and 1 or c < 0xE0 and 2 or c < 0xF0 and 3 or
 			      c < 0xF8 and 4 or --c < 0xFC and 5 or c < 0xFE and 6 or
 				  error("invalid UTF-8 character sequence")
-			val = bit32.band(c, 2^(8-seq) - 1)
+			val = bit.band(c, 2^(8-seq) - 1)
 		else
-			val = bit32.bor(bit32.lshift(val, 6), bit32.band(c, 0x3F))
+			val = bit.bor(bit.lshift(val, 6), bit.band(c, 0x3F))
 		end
 		seq = seq - 1
 	end
@@ -80,7 +134,7 @@ function pm.draw(x, y, on) -- 2 operations, could be 1 with a double-buffer, how
 	-- If on is true then put white, else put black
 	local gx = x / 2 + 1 -- gpu x position
 	local gy = y / 4 + 1 -- gpu y position
-	if gx ~= pm.cx or gy ~= pm.cy then
+	if gx ~= pm.cx or gy ~= pm.cy or (not config.optimize) then
 		if config.rainbow then
 			gpu.setBackground(math.random() * 0xFFFFFF)
 			gpu.setForeground(math.random() * 0xFFFFFF)
@@ -105,6 +159,23 @@ end
 function pm.fill(x, y, width, height, on)
 	local i = x
 	local j = y
+	if width > 1 and height > 3 and config.optimize then
+		local rw = math.floor(width/2+1)
+		local rh = math.floor(height/4+1)
+		local rx = math.floor(x/2+1)
+		local ry = math.floor(y/4+1)
+		if on then
+			gpu.setBackground(0xFFFFFF)
+		else
+			gpu.setBackground(0x000000)
+		end
+		gpu.fill(rx, ry, rw, rh, " ")
+		pm.cx = -1
+		pm.cy = -1
+		gpu.setBackground(0x000000)
+		i = math.floor(x%2+width/2*2+x/2*2)
+		j = math.floor(y%4+height/4*4+y/4*4)
+	end
 	while i < x + width do
 		j = y
 		while j < y + height do
@@ -115,21 +186,10 @@ function pm.fill(x, y, width, height, on)
 	end
 end
 
-local function printBraille(tab)
-	print(tostring(tab[1]) .. tostring(tab[2]))
-	print(tostring(tab[3]) .. tostring(tab[4]))
-	print(tostring(tab[5]) .. tostring(tab[6]))
-	print(tostring(tab[7]) .. tostring(tab[8]))
-end
-
 -- OCCity game
 local running = true
 print("WARNING! ONLY USE CTRL+C TO CLOSE THE GAME!")
 os.sleep(1)
-require("term").clear()
-if config.rainbow then
-	pm.fill(0, 0, 320, 200, false)
-end
 
 local function interruptListener()
 	running = false
@@ -138,44 +198,33 @@ end
 local money = 50000
 local gameThread = thread.create(function()
 	local oldmoney = 0
+	local dirty = true
 	while running do
 		if money ~= oldmoney then
 			oldmoney = money
-			gpu.set(22, 1, "Funds: " .. tostring(money) .. "$")
+			dirty = true
 		end
-		os.sleep(0.05)
+		if dirty then
+			gpu.set(22, 1, "Funds: $" .. tostring(money))
+		end
+		os.sleep(0.1)
 	end
 end)
 
-local musicThread = thread.create(function()
-	local notes = {
-		{210, 0.05},
-		{220, 0.04},
-		{230, 0.04},
-		{215, 0.04},
-		{210, 0.04},
-		{210, 0.05},
-		{220, 0.04},
-		{230, 0.04},
-		{215, 0.04},
-		{210, 0.04},
-		{170, 0.15},
-		{160, 0.10},
-		{170, 0.10},
-		{180, 0.10},
-		{190, 0.10},
-		{200, 0.10}
-	}
-	local i = 1
-	while running do
-		if i > #notes then
-			i = 1
+local function loadTerrain()
+	local file = io.open("default.ter", "r")
+	local width = file:read("*n")
+	local height = file:read("*n")
+	print(width .. "x" .. height)
+	terrain = {}
+	for y=1, height do
+		terrain[y] = {}
+		for x=1, width do
+			terrain[y][x] = file:read("*n")
 		end
-		component.computer.beep(notes[i][1], notes[i][2])
-		os.sleep(0.05)
-		i = i + 1
 	end
-end)
+	file:close()
+end
 
 local function drawResidentialHouse(x, y) -- width: 17, height: 17
 	pm.fill(x, y, 16, 1, true)
@@ -207,29 +256,60 @@ local oldY = -1
 local function mousePress(_, screen, x, y, button)
 	if oldX ~= -1 then
 		pm.fill(oldX * 2, oldY * 4, 17, 17, false)
+		if oldX < 22 then
+			drawBuildPanel()
+		end
 		oldX = x
 		oldY = y
 	else
 		oldX = x
 		oldY = y
 	end
+	drawResidentialHouse(150, 92)
 	drawResidentialHouse(x*2, y*4)
 end
 
-drawResidentialHouse(150, 90)
+local function drawTile(ox, oy, tile)
+	local img = tiles[tile]
+	for y=1, 7 do
+		for x=1, 7 do
+			local pix = img[y][x]
+			pm.draw(ox + x, oy + y, pix)
+		end
+	end
+end
+
+print("Loading terrain..")
+loadTerrain()
+
+require("term").clear()
+
+drawResidentialHouse(150, 92)
 drawBuildPanel()
-musicThread:kill() -- temporaly disabled for performance issues
+
+for iy=1, 5 do
+	for ix=1, 40 do
+		local dx, dy = 40 + ix*7, 0 + iy*7
+		if dx < 303 and dy < 193 then
+			drawTile(dx, dy, terrain[iy][ix])
+		end
+	end
+end
 
 event.listen("interrupted", interruptListener)
-event.listen("drop", mousePress)
+event.listen("touch", mousePress)
+event.listen("drag", mousePress)
 
 while running do
 	event.pull(0.1)
-	--musicThread:resume()
-	gameThread:resume()
 end
-musicThread:kill()
+
+gameThread:kill()
+
 require("term").clear()
 event.ignore("interrupted", interruptListener)
 event.ignore("touch", mousePress)
-print("This game is brought to you by the people called zenith391")
+event.ignore("drag", mousePress)
+
+-- Reference to Maxis, when you close SimEarth, it gives a similar message about Maxis
+print("This game was brought to you by the people called Zen1th")
